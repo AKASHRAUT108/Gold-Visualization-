@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gold Price Prediction: Trends & Performance</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- D3.js CDN for powerful data visualizations -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Base styles for the body and overall container */
+        body {
+            font-family: "Inter", sans-serif; /* Recommended font for clarity */
+            background-color: #f0f4f8; /* Light gray background for a clean look */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align content to the top */
+            min-height: 100vh;
+            padding: 20px;
+        }
+        /* Main dashboard container styling */
+        .dashboard-container {
+            background-color: #ffffff;
+            border-radius: 12px; /* Rounded corners for aesthetic appeal */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); /* Soft shadow for depth */
+            padding: 2rem; /* Ample padding inside the container */
+            max-width: 1000px; /* Wider layout to comfortably fit two charts */
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem; /* More space between chart sections */
+            position: relative; /* For correct tooltip positioning */
+        }
+        /* Styling for each individual chart section */
+        .chart-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem; /* Space between title, legend, and SVG */
+        }
+        /* Main chart titles */
+        .chart-title {
+            font-size: 1.75rem; /* Large font for prominence */
+            font-weight: 700; /* Bold */
+            color: #1a202c; /* Dark gray for strong contrast */
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+        /* Chart subtitles/descriptions */
+        .chart-subtitle {
+            font-size: 1.125rem; /* Medium font */
+            color: #4a5568; /* Slightly lighter gray */
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        /* Legend item styling */
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 1.5rem; /* Spacing between legend items */
+            font-size: 0.875rem;
+            color: #4a5568;
+        }
+        /* Color box within the legend */
+        .legend-color-box {
+            width: 18px; /* Distinct width for color indication */
+            height: 4px;
+            border-radius: 2px;
+            margin-right: 0.5rem;
+        }
+        /* Styling for the D3.js generated lines */
+        .line {
+            fill: none; /* Lines should not be filled */
+            stroke-width: 2.5px; /* Slightly thicker for better visibility */
+        }
+        /* Axis labels and tick marks */
+        .axis text {
+            font-size: 0.875rem; /* Readable font size for axis text */
+            fill: #4a5568; /* Consistent text color */
+        }
+        /* Axis lines and ticks */
+        .axis path, .axis line {
+            stroke: #cbd5e0; /* Subtle gray for axes */
+            stroke-width: 1px;
+        }
+        /* Tooltip styling for interactivity */
+        .tooltip {
+            position: absolute;
+            text-align: left; /* Aligned left for better readability of multiple lines */
+            padding: 10px;
+            font: 13px sans-serif;
+            background: rgba(0, 0, 0, 0.8); /* Dark, semi-transparent background */
+            color: white; /* White text on dark background */
+            border-radius: 8px; /* Rounded corners */
+            pointer-events: none; /* Prevents tooltip from blocking mouse events on chart */
+            opacity: 0; /* Initially hidden */
+            transition: opacity 0.2s; /* Smooth fade in/out */
+            z-index: 1000; /* Ensure tooltip is on top */
+        }
+        /* Styling for the small dots on lines when hovering */
+        .dot {
+            r: 4; /* Radius of the dot */
+            fill: white; /* White fill for contrast */
+            stroke-width: 1.5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Section 1: Historical Trends Chart -->
+        <div class="chart-section">
+            <h2 class="chart-title">Historical Gold Price, USD Index & Oil Price Trends</h2>
+            <p class="chart-subtitle">Understanding key economic indicators influencing gold.</p>
+            <div class="flex justify-center flex-wrap gap-x-6">
+                <div class="legend-item">
+                    <div class="legend-color-box bg-blue-600"></div>
+                    <span>Gold Price (USD/oz)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color-box bg-red-600"></div>
+                    <span>USD Index</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color-box bg-green-600"></div>
+                    <span>Oil Price (USD/barrel)</span>
+                </div>
+            </div>
+            <svg id="historicalTrendsChart" class="w-full h-[350px] md:h-[400px]"></svg>
+            <div id="tooltip1" class="tooltip"></div>
+        </div>
+
+        <!-- Section 2: Actual vs. Predicted Gold Price Chart -->
+        <div class="chart-section">
+            <h2 class="chart-title">Actual vs. Predicted Gold Price Performance</h2>
+            <p class="chart-subtitle">Evaluating the accuracy of the prediction model.</p>
+            <div class="flex justify-center flex-wrap gap-x-6">
+                <div class="legend-item">
+                    <div class="legend-color-box bg-purple-600"></div>
+                    <span>Actual Gold Price</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color-box bg-orange-500"></div>
+                    <span>Predicted Gold Price</span>
+                </div>
+            </div>
+            <svg id="predictionPerformanceChart" class="w-full h-[350px] md:h-[400px]"></svg>
+            <div id="tooltip2" class="tooltip"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- Synthetic Data Generation Functions ---
+        // Generates realistic-looking time-series data for multiple variables
+        function generateHistoricalData(startDate, endDate, numPoints) {
+            const data = [];
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Total days in range
+            const step = Math.floor(diffDays / numPoints); // Days per data point
+
+            for (let i = 0; i < numPoints; i++) {
+                const currentDate = new Date(start);
+                currentDate.setDate(start.getDate() + i * step); // Increment date by step
+
+                // Normalize year factor for trend calculations
+                const yearFactor = (currentDate.getFullYear() - new Date(startDate).getFullYear()) / 15;
+                
+                // Gold price: Simulates a general uptrend with medium volatility and some cycles
+                const goldNoise = (Math.random() - 0.5) * 80; // Random noise
+                const goldTrend = 1200 + yearFactor * 900 + Math.sin(i * 0.5) * 150 + Math.cos(i * 0.1) * 70;
+                const goldPrice = Math.round((goldTrend + goldNoise) / 10) * 10; // Rounded for cleaner values
+
+                // USD Index: Simulates some inverse correlation with gold, plus its own volatility
+                const usdNoise = (Math.random() - 0.5) * 6;
+                const usdTrend = 90 - yearFactor * 3 + Math.cos(i * 0.3) * 7 + Math.sin(i * 0.05) * 3;
+                const usdIndex = Math.round(usdTrend + usdNoise);
+
+                // Oil price: Highly volatile, with a general trend and distinct cycles
+                const oilNoise = (Math.random() - 0.5) * 20;
+                const oilTrend = 60 + yearFactor * 10 + Math.sin(i * 0.2) * 25 + Math.cos(i * 0.08) * 10;
+                const oilPrice = Math.round(oilTrend + oilNoise);
+
+                data.push({
+                    date: currentDate,
+                    gold: goldPrice,
+                    usd: usdIndex,
+                    oil: oilPrice
+                });
+            }
+            return data;
+        }
+
+        // Generates simulated prediction data based on historical actuals
+        function generatePredictionData(historicalData) {
+            return historicalData.map(d => {
+                // Simulates a prediction that generally follows the actual, but with a small, random error
+                const predictionError = (Math.random() - 0.5) * 0.05; // +/- 5% random error
+                const predictedGold = Math.round(d.gold * (1 + predictionError) / 10) * 10; // Apply error and round
+                return { date: d.date, actual: d.gold, predicted: predictedGold };
+            });
+        }
+
+        // Generate our synthetic datasets
+        const historicalData = generateHistoricalData("2010-01-01", "2024-01-01", 150); // 150 data points over ~14 years
+        const predictionData = generatePredictionData(historicalData); // Predictions based on the generated historical data
+
+        // --- Chart Rendering Function ---
+        // This generic function handles drawing multiple lines on potentially dual Y-axes
+        function renderChart(svgId, data, variables, yAxisLabels, colors, tooltipId) {
+            // Select the SVG element using its ID
+            const svg = d3.select(`#${svgId}`);
+            // Define margins for the chart area within the SVG
+            const margin = { top: 30, right: 70, bottom: 50, left: 70 };
+            // Calculate actual chart width and height
+            const chartWidth = svg.node().clientWidth - margin.left - margin.right;
+            const chartHeight = svg.node().clientHeight - margin.top - margin.bottom;
+
+            // Append a 'g' element (group) to act as the drawing area, translated by margins
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // X-axis scale (Time Scale for dates)
+            const x = d3.scaleTime()
+                .domain(d3.extent(data, d => d.date)) // Domain from min to max date in data
+                .range([0, chartWidth]); // Map domain to pixel range
+
+            // Dynamically determine y-axis domains for left and right axes
+            // This ensures scales are appropriate even if only one axis is used
+            const yDomains = { left: [Infinity, -Infinity], right: [Infinity, -Infinity] };
+            variables.forEach((v, i) => {
+                // If the variable uses the first label, it's the left axis
+                if (yAxisLabels[i] === yAxisLabels[0]) {
+                    yDomains.left[0] = Math.min(yDomains.left[0], d3.min(data, d => d[v]));
+                    yDomains.left[1] = Math.max(yDomains.left[1], d3.max(data, d => d[v]));
+                } else { // Otherwise, it's the right axis
+                    yDomains.right[0] = Math.min(yDomains.right[0], d3.min(data, d => d[v]));
+                    yDomains.right[1] = Math.max(yDomains.right[1], d3.max(data, d => d[v]));
+                }
+            });
+
+            // Left Y-axis scale
+            const yLeft = d3.scaleLinear()
+                .domain([yDomains.left[0] * 0.95, yDomains.left[1] * 1.05]) // Add 5% padding to domain
+                .range([chartHeight, 0]); // Map domain to pixel range (inverted for SVG)
+            
+            // Right Y-axis scale (if applicable)
+            const yRight = d3.scaleLinear()
+                // Use a default domain if right axis is not effectively used to prevent NaN
+                .domain([yDomains.right[0] === Infinity ? 0 : yDomains.right[0] * 0.95,
+                         yDomains.right[1] === -Infinity ? 100 : yDomains.right[1] * 1.05])
+                .range([chartHeight, 0]);
+
+            // Define Axes Generators
+            const xAxis = d3.axisBottom(x);
+            const yAxisLeft = d3.axisLeft(yLeft).tickFormat(d3.format("~s")); // Shorten large numbers (e.g., 12000 becomes 12k)
+            const yAxisRight = d3.axisRight(yRight).tickFormat(d3.format("~s"));
+
+            // Append X Axis to the SVG group 'g'
+            g.append("g")
+                .attr("class", "axis x-axis") // Apply CSS classes
+                .attr("transform", `translate(0,${chartHeight})`) // Position at the bottom of the chart area
+                .call(xAxis) // Call the axis generator
+                .append("text") // Append axis label
+                .attr("y", 40)
+                .attr("x", chartWidth / 2)
+                .attr("fill", "#4a5568")
+                .attr("font-size", "0.9rem")
+                .text("Date");
+
+            // Append Left Y Axis
+            g.append("g")
+                .attr("class", "axis y-axis-left")
+                .call(yAxisLeft)
+                .append("text")
+                .attr("transform", "rotate(-90)") // Rotate label for vertical alignment
+                .attr("y", -60)
+                .attr("x", -chartHeight / 2)
+                .attr("dy", "1em") // Adjust vertical position
+                .attr("fill", "#4a5568")
+                .attr("font-size", "0.9rem")
+                .text(yAxisLabels[0]); // Use the first label from array
+
+            // Append Right Y Axis (only if a second label is provided)
+            if (yAxisLabels[1]) {
+                g.append("g")
+                    .attr("class", "axis y-axis-right")
+                    .attr("transform", `translate(${chartWidth}, 0)`) // Position at the right of the chart area
+                    .call(yAxisRight)
+                    .append("text")
+                    .attr("transform", "rotate(90)") // Rotate label
+                    .attr("y", -50)
+                    .attr("x", chartHeight / 2)
+                    .attr("dy", "1em")
+                    .attr("fill", "#4a5568")
+                    .attr("font-size", "0.9rem")
+                    .text(yAxisLabels[1]); // Use the second label from array
+            }
+
+            // --- Draw Lines and Setup Tooltip ---
+            // Iterate through each variable to draw its corresponding line
+            variables.forEach((variable, index) => {
+                const isLeftAxis = (yAxisLabels[index] === yAxisLabels[0]); // Check which Y-axis to use
+                const currentYScale = isLeftAxis ? yLeft : yRight; // Select the correct scale
+                const lineColor = colors[index]; // Get the line color
+
+                // Define the line generator for the current variable
+                const lineGenerator = d3.line()
+                    .x(d => x(d.date))
+                    .y(d => currentYScale(d[variable]));
+
+                // Append the path for the line
+                g.append("path")
+                    .datum(data) // Bind the entire dataset
+                    .attr("class", "line")
+                    .attr("d", lineGenerator) // Use the line generator to create path data
+                    .attr("stroke", lineColor); // Apply stroke color
+            });
+
+            // Select the tooltip div
+            const tooltipDiv = d3.select(`#${tooltipId}`);
+            // Create a focus group for the hover circles, initially hidden
+            const focus = g.append("g").attr("class", "focus").style("display", "none");
+
+            // Append a circle for each variable to the focus group
+            variables.forEach((variable, index) => {
+                focus.append("circle")
+                    .attr("class", `tooltip-circle-${variable}`) // Unique class for each variable's circle
+                    .attr("r", 5) // Radius of the circle
+                    .attr("fill", colors[index]) // Fill color matches the line
+                    .attr("stroke", "white"); // White stroke for visibility
+            });
+
+            // Create an overlay rectangle to capture mouse events over the chart area
+            svg.append("rect")
+                .attr("class", "overlay")
+                .attr("width", chartWidth)
+                .attr("height", chartHeight)
+                .attr("transform", `translate(${margin.left},${margin.top})`) // Position correctly
+                .style("fill", "none")
+                .style("pointer-events", "all") // Ensures it captures all mouse events
+                .on("mouseover", function() { focus.style("display", null); tooltipDiv.style("opacity", 1); }) // Show on mouseover
+                .on("mouseout", function() { focus.style("display", "none"); tooltipDiv.style("opacity", 0); }) // Hide on mouseout
+                .on("mousemove", mousemove); // Handle mouse movement
+
+            // Function to handle mouse movement for tooltip and focus circles
+            function mousemove(event) {
+                const bisectDate = d3.bisector(d => d.date).left; // Bisector to find nearest data point by date
+                const x0 = x.invert(d3.pointer(event)[0]); // Invert x-coordinate to get date
+                const i = bisectDate(data, x0, 1); // Find index of nearest data point
+                const d0 = data[i - 1]; // Data point before
+                const d1 = data[i];     // Data point after
+                const d = x0 - d0.date > d1.date - x0 ? d1 : d0; // Select the closest data point
+
+                let tooltipContent = `Date: ${d3.timeFormat("%Y-%m-%d")(d.date)}<br>`; // Start tooltip content with date
+
+                // Update circle positions and add content to tooltip for each variable
+                variables.forEach((variable, index) => {
+                    const isLeftAxis = (yAxisLabels[index] === yAxisLabels[0]);
+                    const currentYScale = isLeftAxis ? yLeft : yRight;
+                    focus.select(`.tooltip-circle-${variable}`)
+                        .attr("transform", `translate(${x(d.date)},${currentYScale(d[variable])})`);
+                    // Capitalize the first letter of the variable name for display
+                    tooltipContent += `${variable.charAt(0).toUpperCase() + variable.slice(1)}: ${d[variable]}<br>`;
+                });
+                
+                tooltipDiv
+                    .html(tooltipContent) // Set tooltip HTML
+                    .style("left", (event.pageX + 15) + "px") // Position tooltip horizontally
+                    .style("top", (event.pageY - 30) + "px"); // Position tooltip vertically
+            }
+        }
+
+        // --- Main Execution Block ---
+        // Ensures charts are rendered once the window is fully loaded
+        window.onload = function() {
+            // Chart 1: Historical Trends (Gold, USD, Oil)
+            renderChart(
+                "historicalTrendsChart", // SVG ID
+                historicalData,          // Data source
+                ["gold", "usd", "oil"],  // Variables to plot
+                ["Price (USD/oz)", "Index/Price"], // Y-axis labels (Left, Right)
+                ["#3B82F6", "#EF4444", "#10B981"], // Colors for Gold, USD, Oil
+                "tooltip1"               // Tooltip div ID
+            );
+
+            // Chart 2: Prediction Performance (Actual vs. Predicted Gold)
+            renderChart(
+                "predictionPerformanceChart", // SVG ID
+                predictionData,               // Data source
+                ["actual", "predicted"],      // Variables to plot
+                ["Gold Price (USD/oz)", ""],  // Y-axis labels (Only Left axis needed)
+                ["#8B5CF6", "#F97316"],       // Colors for Actual, Predicted
+                "tooltip2"                    // Tooltip div ID
+            );
+        };
+    </script>
+</body>
+</html>
